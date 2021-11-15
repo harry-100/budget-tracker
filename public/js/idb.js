@@ -15,7 +15,7 @@ request.onsuccess = function(event) {
     db = event.target.result;
     // check if app is online, if so, call getData() to retrieve data from local storage
     if (navigator.onLine) {
-        getData();
+        uploadData();
     }
 };
 // this event will emit if there is an error with the database connection
@@ -31,3 +31,44 @@ function saveData(data) {
     // add data to the object store
     store.add(data);
 }
+function uploadData() {
+    // create a transaction on the 'new-item' object store with readwrite access
+    const transaction = db.transaction(['new-item'], 'readwrite');
+    // access the 'new-item' object store
+    const store = transaction.objectStore('new-item');
+    // get all items in the object store
+    const getAll = store.getAll();
+    //  upon successful completion of getAll() run this function
+    getAll.onsuccess = function() {
+        // if there was data in indexedDb' store, let's send it t
+        if (getAll.result.length > 0) {
+            fetch('/api/transaction', {
+                method: 'POST',
+                body: JSON.stringify(getAll.result),
+                headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(serverResponse => {
+                if (serverResponse.message) {
+                    throw new Error(serverResponse);
+                }
+            // open one more transaction on the 'new-item' object store with readwrite access
+            const transaction = db.transaction(['new-item'], 'readwrite');
+            // access the 'new-item' object store
+            const store = transaction.objectStore('new-item');
+            // clear all items in the object store
+            store.clear();
+            alert('All saved transactions have been submitted!');
+            })
+            .catch(err => {
+                console.log(err);
+                alert(err.message);
+            });
+        }
+    }
+}
+// listen for app coming back online
+window.addEventListener('online', uploadData);
